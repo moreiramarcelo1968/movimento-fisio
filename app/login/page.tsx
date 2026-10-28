@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarCheck2, FileBarChart2, Smartphone } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { LoginForm } from "@/components/forms/login-form";
 import { getCurrentUser } from "@/lib/auth";
+import { getDb } from "@/lib/db";
+import { users } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,10 @@ const highlights = [
 export default async function LoginPage() {
   const user = await getCurrentUser();
   if (user) redirect("/");
+
+  const db = await getDb();
+  const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
+  if (existingUsers.length === 0) redirect("/cadastro");
 
   const showDemoCredentials = process.env.NODE_ENV !== "production";
 
@@ -92,6 +99,13 @@ export default async function LoginPage() {
           </p>
 
           <LoginForm />
+
+          <p className="mt-6 text-center text-[13px] text-ink-soft">
+            Não tem uma conta?{" "}
+            <Link href="/cadastro" className="font-medium text-pine hover:underline">
+              Criar conta
+            </Link>
+          </p>
 
           {showDemoCredentials ? (
             <div className="mt-8 rounded-xl border border-dashed border-line bg-surface px-4 py-3">

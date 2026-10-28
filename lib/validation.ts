@@ -52,6 +52,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Informe a senha."),
 });
 
+export const registerSchema = z
+  .object({
+    name: z.string().trim().min(3, "Informe seu nome completo.").max(120, "Nome muito longo."),
+    email: z.string().trim().toLowerCase().refine((value) => emailPattern.test(value), "E-mail inválido."),
+    password: z.string().min(8, "Use pelo menos 8 caracteres."),
+    confirmPassword: z.string().min(1, "Confirme a senha."),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "As senhas não conferem.",
+    path: ["confirmPassword"],
+  });
+
 export const clinicSchema = z.object({
   clinicName: z.string().trim().min(2, "Informe o nome da clínica.").max(120),
   professionalName: z.string().trim().max(120),

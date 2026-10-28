@@ -130,3 +130,44 @@ export async function changePasswordAction(
 
   return { status: "success", message: "Senha alterada." };
 }
+
+export async function registerAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = (await import("@/lib/validation")).registerSchema.safeParse({
+    name: String(formData.get("name") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
+  });
+
+  if (!parsed.success) {
+    return formError("Confira os dados para criar sua conta.", fieldErrors(parsed.error));
+  }
+
+  const { name, email, password } = parsed.data;
+  const db = await getDb();
+
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  if (existing.length > 0) {
+    return formError("Este e-mail já está cadastrado.", { email: "E-mail já em uso." });
+  }
+
+  try {
+    const [user] = await db
+      .insert(users)
+      .values({
+        name,
+        email,
+        passwordHash: await hashPassword(password),
+      })
+      .returning({ id: users.id });
+
+    await createSession(user.id);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return formError("Este e-mail já está cadastrado.", { email: "E-mail já em uso." });
+    }
+    throw error;
+  }
+
+  redirect("/");
+}
