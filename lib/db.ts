@@ -75,7 +75,7 @@ async function bootstrap(instance: Database) {
 
   const existingUsers = await instance.select({ id: schema.users.id }).from(schema.users).limit(1);
 
-  if (existingUsers.length === 0) {
+  if (existingUsers.length === 0 && process.env.AUTO_CREATE_ADMIN !== "false") {
     const email = (process.env.ADMIN_EMAIL || "fisio@movimento.app").trim().toLowerCase();
     const password = process.env.ADMIN_PASSWORD || "movimento123";
     const name = process.env.ADMIN_NAME || "Fisioterapeuta";
