@@ -4,6 +4,9 @@ Sistema web (PWA) para uma clínica de fisioterapia: pacientes, tipos de atendim
 com preço, agenda, atendimentos com status e relatórios por tipo com totais e
 quantidades. Interface em português, pensada primeiro para o celular.
 
+> 📘 **Manual do usuário:** veja [MANUAL.md](MANUAL.md) para o guia de uso do dia a
+> dia (primeiro acesso, cadastros, agenda, relatórios e rotina da clínica).
+
 ## O que o sistema faz
 
 - **Pacientes** — cadastro com contato, dados pessoais e observações clínicas;
