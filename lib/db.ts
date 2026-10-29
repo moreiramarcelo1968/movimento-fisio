@@ -5,6 +5,8 @@ import { neon } from "@neondatabase/serverless";
 import { sql } from "drizzle-orm";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 import { drizzle as drizzlePglite, type PgliteDatabase } from "drizzle-orm/pglite";
+import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { DDL_STATEMENTS } from "../db/ddl";
 import * as schema from "../db/schema";
 
@@ -56,16 +58,50 @@ const DEFAULT_SERVICE_TYPES = [
 ];
 
 function createInstance(): Database {
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = remoteConnectionString();
 
   if (connectionString) {
-    const client = neon(connectionString);
-    return drizzleNeon(client, { schema }) as unknown as Database;
+    if (isNeon(connectionString)) {
+      const client = neon(connectionString);
+      return drizzleNeon(client, { schema }) as unknown as Database;
+    }
+
+    // Postgres comum (Prisma Postgres, Supabase, RDS...) via TCP.
+    // `prepare: false` mantém a conexão compatível com poolers.
+    const client = postgres(connectionString, {
+      max: 1,
+      idle_timeout: 20,
+      connect_timeout: 10,
+      prepare: false,
+      ssl: needsSsl(connectionString) ? "require" : false,
+      onnotice: () => {},
+    });
+
+    return drizzlePostgres(client, { schema }) as unknown as Database;
   }
 
   const dataDir = process.env.PGLITE_DIR?.trim() || path.join(process.cwd(), ".pglite");
   const client = new PGlite(dataDir);
   return drizzlePglite(client, { schema }) as unknown as Database;
+}
+
+/**
+ * Em produção usamos o endpoint com pool quando o provedor oferece um
+ * (Prisma Postgres expõe `DATABASE_URL_POOLED`). Localmente, sem nenhuma
+ * das duas variáveis, o app cai no PGlite.
+ */
+function remoteConnectionString(): string | undefined {
+  const pooled = process.env.DATABASE_URL_POOLED?.trim();
+  const direct = process.env.DATABASE_URL?.trim();
+  return pooled || direct || undefined;
+}
+
+function isNeon(connectionString: string): boolean {
+  return /neon\.tech/i.test(connectionString);
+}
+
+function needsSsl(connectionString: string): boolean {
+  return /sslmode=(require|verify-ca|verify-full)/i.test(connectionString) || /prisma\.io/i.test(connectionString);
 }
 
 async function bootstrap(instance: Database) {
@@ -124,11 +160,15 @@ export async function closeDb(): Promise<void> {
   if (!globalStore.__movimentoDb) return;
 
   const client = (globalStore.__movimentoDb as unknown as {
-    $client?: { close?: () => Promise<void> };
+    $client?: { close?: () => Promise<void>; end?: (options?: { timeout?: number }) => Promise<void> };
   }).$client;
 
   try {
-    await client?.close?.();
+    if (client?.end) {
+      await client.end({ timeout: 1 });
+    } else {
+      await client?.close?.();
+    }
   } catch {
     /* ignora erros ao fechar uma conexão que já caiu */
   }

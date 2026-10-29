@@ -37,8 +37,9 @@ quantidades. Interface em português, pensada primeiro para o celular.
 - [Next.js 15](https://nextjs.org) (App Router) + React 19 + TypeScript
 - Tailwind CSS v4 e um kit de componentes próprio
 - [Drizzle ORM](https://orm.drizzle.team) com Postgres
-- **Neon** (`@neondatabase/serverless`) em produção e **PGlite** embutido no
-  desenvolvimento — o mesmo schema, sem precisar instalar Postgres localmente
+- **Neon** (`@neondatabase/serverless`) ou **Postgres padrão** (`postgres.js`) em
+  produção e **PGlite** embutido no desenvolvimento — o mesmo schema, sem precisar
+  instalar Postgres localmente
 - Autenticação própria com JWT (`jose`) + `bcryptjs`
 - `pdf-lib` para o PDF e geração manual de CSV
 
@@ -77,8 +78,14 @@ Copie `.env.example` para `.env.local` e ajuste:
 | `ADMIN_EMAIL`     | não         | E-mail do usuário criado no primeiro acesso.                     |
 | `ADMIN_PASSWORD`  | não         | Senha do usuário criado no primeiro acesso.                      |
 | `ADMIN_NAME`      | não         | Nome exibido do usuário inicial.                                 |
-| `DATABASE_URL`    | produção    | Connection string do Neon. Vazio = PGlite local.                 |
+| `DATABASE_URL`    | produção    | Connection string do Postgres. Vazio = PGlite local.             |
+| `DATABASE_URL_POOLED` | não     | Endpoint com pool, usado em produção quando existir.             |
 | `PGLITE_DIR`      | não         | Pasta do banco local. Padrão: `.pglite`.                         |
+
+O banco de produção pode ser Neon (`postgresql://...@ep-xxx.neon.tech/...`) ou
+qualquer Postgres padrão, como o **Prisma Postgres** do Vercel Marketplace
+(`postgres://...@db.prisma.io:5432/postgres?sslmode=require`). URLs do Neon usam
+o driver HTTP; as demais usam conexão TCP via `postgres.js`.
 
 Gerar um segredo:
 
@@ -103,23 +110,27 @@ Os dados de demonstração incluem 8 pacientes e cerca de 40 atendimentos
 distribuídos entre as últimas semanas e os próximos dias, com todos os status.
 O seed não roda automaticamente: é preciso chamá-lo.
 
-## Publicando na Vercel com Neon
+## Publicando na Vercel
 
-1. Crie um projeto em [neon.tech](https://neon.tech) e copie a connection string
-   (com `?sslmode=require`).
-2. Suba o projeto para um repositório no GitHub.
-3. Importe o repositório na [Vercel](https://vercel.com). O framework é detectado
+1. Suba o projeto para um repositório no GitHub.
+2. Importe o repositório na [Vercel](https://vercel.com). O framework é detectado
    automaticamente.
+3. Provisione um Postgres:
+   - **Prisma Postgres** (Marketplace, plano gratuito): em **Storage → Create
+     Database → Prisma Postgres**, conecte ao projeto. As variáveis
+     `DATABASE_URL` e `DATABASE_URL_POOLED` são injetadas automaticamente.
+   - **Neon**: crie um projeto em [neon.tech](https://neon.tech), copie a
+     connection string (com `?sslmode=require`) e defina `DATABASE_URL`.
 4. Em **Settings → Environment Variables**, configure:
-   - `DATABASE_URL` — connection string do Neon
+   - `DATABASE_URL` — connection string do Postgres
    - `AUTH_SECRET` — segredo forte
-   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` — acesso inicial
+   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` — acesso inicial (opcional)
 5. Faça o deploy. No primeiro acesso, as tabelas são criadas automaticamente e o
    usuário administrador é cadastrado.
 
 Não é necessário rodar migrações: o schema é idempotente e criado na primeira
 requisição. Para gerar os dados de demonstração em produção, rode o seed local
-apontando `DATABASE_URL` para o Neon:
+apontando `DATABASE_URL` para o banco:
 
 ```bash
 # PowerShell
@@ -127,8 +138,8 @@ $env:DATABASE_URL="postgresql://..."
 npm run db:seed
 ```
 
-> Use o Neon e o Vercel no plano gratuito para começar. O banco é acessado apenas
-> pelo servidor (driver HTTP), nunca direto pelo navegador.
+> Use os planos gratuitos para começar. O banco é acessado apenas pelo servidor,
+> nunca direto pelo navegador.
 
 ## PWA
 
@@ -158,7 +169,7 @@ db/
   schema.ts             # schema Drizzle
 lib/
   auth.ts               # sessão JWT e controle de tentativas
-  db.ts                 # conexão PGlite/Neon e bootstrap
+  db.ts                 # conexão PGlite/Postgres e bootstrap
   queries.ts            # consultas de leitura
   report.ts             # agregação dos relatórios
   csv.ts / pdf.ts       # exportações
